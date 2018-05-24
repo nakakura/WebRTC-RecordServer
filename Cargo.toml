@@ -1,0 +1,11 @@
+[package]
+name = "udp_sendrecv_tokio"
+version = "0.1.0"
+authors = ["Toshiya Nakakura <nakakura@me.com>"]
+
+[dependencies]
+futures = "0.1.17"
+tokio = "0.1.6"
+tokio-io = "0.1.6"
+bytes = "0.4.7"
+
