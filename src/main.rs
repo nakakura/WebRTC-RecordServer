@@ -25,53 +25,33 @@ fn main() {
 
     let mut current_thread = CurrentThread::new();
 
-    socket(&addr1, &mut current_thread);
+    let rx = file::read_file("./dump", &mut current_thread);
+    socket(addr1, &mut current_thread, rx);
 
     let _x = current_thread.run();
 }
 
-fn socket(addr: &SocketAddr, current_thread: &mut CurrentThread) {
-    let fs = FsPool::default();
+fn socket(addr: SocketAddr, current_thread: &mut CurrentThread, rx: mpsc::Receiver<Bytes>) {
     let sock = UdpSocket::bind(&addr).unwrap();
     let (a_sink, a_stream) = UdpFramed::new(sock, BytesCodec::new()).split();
+
+    let fs = FsPool::default();
     let write = fs.write("./dump2", Default::default());
-    let read = fs.read("./dump", Default::default());
-    let (tx, rx) = mpsc::channel::<Bytes>(1500);
-    let mut buf = BytesMut::with_capacity(999999);
 
-    let r = read.map_err(|_| ()).fold((tx, buf), |mut sum: (mpsc::Sender<Bytes>, BytesMut), x| {
-        use nom::IResult::Done;
-        sum.1.put(x);
-        let r = file::parse(vec!(), &sum.1);
-        let mut tx = sum.0;
-        for i in 0..r.0.len() {
-            tx = tx.send(Bytes::from(r.0[i])).wait().unwrap();
-        }
-
-        let mut buf = BytesMut::with_capacity(999999);
-        buf.put(r.1);
-
-        Ok((tx, buf))
-    }).map(|x| ());
-
-    let task = a_stream.map_err(|_| ()).fold(write, |w, (data, _addr)| {
+    let stream = a_stream.map(|(data, _addr)| {
         let len = data.len();
         let mut buf = BytesMut::with_capacity(len + 2);
         buf.put_u16_be(len as u16);
         buf.put(data);
-        let w = w.send(buf.freeze()).wait().unwrap();
-        Ok(w)
-    });
-
-    let addr1: SocketAddr = format!("{}:{}", "127.0.0.1", 10001).parse().unwrap();
+        buf.freeze()
+    }).forward(write);
 
     let sender = a_sink.sink_map_err(|e| {
         eprintln!("err {:?}", e);
-    }).send_all(rx.map(move |x| (x, addr1))).then(|_| Ok(()));
+    }).send_all(rx.map(move |x| (x, addr))).then(|_| Ok(()));
 
-    current_thread.spawn(r.map_err(|_| ()));
     current_thread.spawn({
-        sender.join(task)
+        sender.join(stream)
             .map(|_| ())
             .map_err(|e| println!("error = {:?}", e))
     });
