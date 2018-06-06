@@ -6,6 +6,7 @@ extern crate tokio_io;
 extern crate bytes;
 #[macro_use]
 extern crate nom;
+extern crate chrono;
 
 mod file;
 
