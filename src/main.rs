@@ -33,7 +33,8 @@ fn main() {
 }
 
 fn socket(addr: SocketAddr, current_thread: &mut CurrentThread, rx: mpsc::Receiver<Bytes>) {
-    let sock = UdpSocket::bind(&addr).unwrap();
+    let local_addr: SocketAddr = "127.0.0.1:10001".parse().unwrap();
+    let sock = UdpSocket::bind(&local_addr).unwrap();
     let (a_sink, a_stream) = UdpFramed::new(sock, BytesCodec::new()).split();
 
     let fs = FsPool::default();

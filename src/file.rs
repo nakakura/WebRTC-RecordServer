@@ -106,29 +106,13 @@ impl Stream for RtpFileStream {
 }
 
 pub fn read_file(name: &'static str, current_thread: &mut CurrentThread) -> mpsc::Receiver<Bytes> {
-    let (_tx, rx) = mpsc::channel::<Bytes>(1500);
+    let (tx, rx) = mpsc::channel::<Bytes>(1500);
     let stream = RtpFileStream::new(name);
-    current_thread.spawn(stream.for_each(|_x| {
-        //println!("output {:?}", x);
-        Ok(())
-    }));
-    //let fs = FsPool::default();
-    //let read = fs.read(name, Default::default());
-    //let sink = RtpFileSink::new();
-    //read.forward(sink).wait();
-    /*
-    let r = read.map_err(|_| ()).fold((tx, BytesMut::with_capacity(999999)), |mut sum, x| {
-        sum.1.put(x);
-        let r = parse(vec!(), &sum.1);
-        let tx = sum.0.send(r.0).wait().unwrap();
-        let mut buf = BytesMut::with_capacity(999999);
-        buf.put(r.1);
-
-        Ok((tx, buf))
+    let r = stream.fold(tx, |sender, x| {
+        let tx = sender.send(x).wait().unwrap();
+        Ok(tx)
     });
-
-    */
-    //current_thread.spawn(r);
+    current_thread.spawn(r.map(|_| ()));
     rx
 }
 
